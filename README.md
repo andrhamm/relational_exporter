@@ -2,6 +2,13 @@
 
 A gem to make it easy to export data from relational databases. RelationalExporter shines when your intended output is a "flat" CSV file, but your data is relational (each record can have multiple associated sub-records). Define your schema (once) in a familiar ActiveRecord-y way and leverage the robust model featureset. Once your schema is defined, define one or more output configurations which can be re-used to generate an export file.
 
+## TODO
+
+* Support multiple formats (currently only CSV)
+* Integrate serializers of some sort
+* Improve DSL
+* Clean up the code
+
 ## Installation
 
 Add this line to your application's Gemfile:
