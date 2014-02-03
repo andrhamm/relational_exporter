@@ -36,16 +36,26 @@ module RelationalExporter
       max_associations = {}
 
       ::CSV.open('/tmp/test.csv', 'wb', headers: true) do |csv|
-        main_klass.all.find_in_batches do |batch|
+        main_klass.find_all_by_scope(output_config.output.scope.as_json).find_in_batches do |batch|
           batch.each do |single|
             if block_given?
               yield single
+
+              return unless single
             end
 
             row = []
 
             # Add main record headers
-            single.attributes.each do |field, value|
+            if !main_klass.active_model_serializer.blank?
+              main_attributes = main_klass.active_model_serializer.new(single).as_json(root: false) rescue nil
+            elsif defined?(BaseSerializer)
+              main_attributes = BaseSerializer.new(single).as_json(root: false) rescue nil
+            end
+
+            main_attributes = single.attributes if main_attributes.nil?
+
+            main_attributes.each do |field, value|
               header_row << [main_klass.to_s.underscore, field].join('_').classify if csv.header_row?
               row << value
             end
@@ -98,7 +108,6 @@ module RelationalExporter
             csv << header_row if csv.header_row?
             if row.count != header_row.count
               puts "OH SHIT, this row is not right!"
-              byebug
             end
             csv << row
           end
