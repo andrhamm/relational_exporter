@@ -57,15 +57,7 @@ module RelationalExporter
             row = []
 
             # Add main record headers
-            if !main_klass.active_model_serializer.blank?
-              main_attributes = main_klass.active_model_serializer.new(single).as_json(root: false) rescue nil
-            elsif defined?(BaseSerializer)
-              main_attributes = BaseSerializer.new(single).as_json(root: false) rescue nil
-            end
-
-            main_attributes = single.attributes if main_attributes.nil?
-
-            main_attributes.each do |field, value|
+            serialized_attributes(single).each do |field, value|
               header_row << [main_klass.to_s.underscore, field].join('_').classify if csv.header_row?
               row << value
             end
@@ -87,7 +79,7 @@ module RelationalExporter
 
               foreign_key = main_klass.reflections[association_accessor].foreign_key rescue nil
 
-              fields = association_klass.first.attributes.keys
+              fields = serialized_attributes(association_klass).keys
 
               fields.reject! {|v| v == foreign_key } if foreign_key
 
@@ -127,10 +119,26 @@ module RelationalExporter
 
     private
 
+    def serialized_attributes(object)
+      return nil if object.nil?
+
+      klass, model = object.is_a?(Class) ? [object, object.first] : [object.class, object]
+
+      if model.respond_to? :active_model_serializer
+        serialized = model.active_model_serializer.new(model).as_json(root: false) rescue nil
+      elsif defined?(BaseSerializer)
+        serialized = BaseSerializer.new(model).as_json(root: false) rescue nil
+      end
+
+      serialized = model.attributes if serialized.nil?
+      serialized
+    end
+
     def get_row_arr(records, fields, max_count=1, &block)
       max_count.times do |i|
+        record = serialized_attributes records[i]
         fields.each do |field|
-          val = records[i][field] rescue nil
+          val = record[field] rescue nil
           yield val
         end
       end
