@@ -95,6 +95,8 @@ module RelationalExporter
                   max_associated = 1
                 end
 
+                max_associated = 0 if max_associated.nil?
+
                 max_associations[association_accessor] = max_associated
 
                 max_associated.times do |i|
@@ -109,7 +111,7 @@ module RelationalExporter
 
             csv << header_row if csv.header_row?
             if row.count != header_row.count
-              puts "OH SHIT, this row is not right!"
+              @logger.error "Encountered invalid row, skipping."
             end
             csv << row
           end
@@ -124,10 +126,12 @@ module RelationalExporter
 
       klass, model = object.is_a?(Class) ? [object, object.first] : [object.class, object]
 
-      if model.respond_to? :active_model_serializer
+      return {} if model.nil?
+
+      if model.respond_to?(:active_model_serializer) && !model.active_model_serializer.nil?
         serialized = model.active_model_serializer.new(model).as_json(root: false) rescue nil
-      elsif defined?(BaseSerializer)
-        serialized = BaseSerializer.new(model).as_json(root: false) rescue nil
+      # elsif defined?(BaseSerializer)
+        # serialized = BaseSerializer.new(model).as_json(root: false) rescue nil
       end
 
       serialized = model.attributes if serialized.nil?
