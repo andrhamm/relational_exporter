@@ -6,11 +6,10 @@ require 'relational_exporter/active_record_extension'
 
 module RelationalExporter
   class Runner
-    attr_accessor :schema
+    attr_accessor :schema, :logger
 
     def initialize(options={})
-      # TODO - disable when not byebugging!!!
-      ActiveRecord::Base.logger = Logger.new(STDOUT)
+      @logger = options[:logger] ? options[:logger] : Logger.new(STDERR)
 
       @connection_config = options[:connection_config]
       begin
@@ -26,6 +25,8 @@ module RelationalExporter
     end
 
     def export(output_config, &block)
+      ActiveRecord::Base.logger = @logger
+
       output_config = Hashie::Mash.new output_config
 
       main_klass = output_config.output.model.to_s.classify.constantize
@@ -35,7 +36,16 @@ module RelationalExporter
       header_row = []
       max_associations = {}
 
-      ::CSV.open('/tmp/test.csv', 'wb', headers: true) do |csv|
+      csv_options = {headers: true}
+      if output_config.file_path.blank?
+        csv_method = :instance
+        csv_args = [STDOUT, csv_options]
+      else
+        csv_method = :open
+        csv_args = [output_config.file_path, 'wb', csv_options]
+      end
+
+      ::CSV.send(csv_method, *csv_args) do |csv|
         main_klass.find_all_by_scope(output_config.output.scope.as_json).find_in_batches do |batch|
           batch.each do |single|
             if block_given?

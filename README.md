@@ -78,9 +78,14 @@ Or install it yourself as:
   }
 
   # Run the export!
-  r = RelationalExporter::Runner.new schema: my_schema, connection_config: my_conn
+  r = RelationalExporter::Runner.new schema: my_schema, connection_config: my_conn, logger: Logger.new(STDERR)
   r.export(my_output_config) do |record|
-    # modify the record and it's models/associations
+    # examine the record and it's associations using any
+    # Active Record models that were defined in your schema!
+    puts record.class # => Person
+
+    # filter out the record if desired
+    record = nil if record.name == 'Bob'
   end
 ```
 
