@@ -89,6 +89,30 @@ Or install it yourself as:
   end
 ```
 
+## Support for Active Model Serializers
+
+Install the [`active_model_serializers`](https://github.com/rails-api/active_model_serializers) gem in your application to take advantage of easy serialization. For CSV exports, `relational_exporter` will look for a serializer when rendering the CSV row. If your serializer implements the `self.csv_header_prefix_for_key(key)` method, `relational_exporter` will use that method to determine the column header for a given model attribute.
+
+Example:
+
+```ruby
+class PersonSerializer < ActiveModel::Serializer
+  attributes :id, :name, :brother_name
+
+  def self.csv_header_prefix_for_key(key)
+    key == :brother_name ? '' : 'Person'
+  end
+end
+```
+
+Would generate a CSV header row like:
+
+```
+PersonId,PersonName,BrotherName
+```
+
+Notice how the 'BrotherName' is not prefixed with 'Person'
+
 ## Contributing
 
 1. Fork it

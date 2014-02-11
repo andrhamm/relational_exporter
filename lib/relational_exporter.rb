@@ -58,7 +58,7 @@ module RelationalExporter
 
             # Add main record headers
             serialized_attributes(single).each do |field, value|
-              header_row << [main_klass.to_s.underscore, field].join('_').classify if csv.header_row?
+              header_row << csv_header_prefix_for_key(main_klass, field) if csv.header_row?
               row << value
             end
 
@@ -101,7 +101,7 @@ module RelationalExporter
 
                 max_associated.times do |i|
                   fields.each do |field|
-                    header_row << [association_klass.to_s.underscore, i+1, field].join('_').classify
+                    header_row << csv_header_prefix_for_key(association_klass, field, i+1)
                   end
                 end
               end
@@ -121,8 +121,18 @@ module RelationalExporter
 
     private
 
+    def csv_header_prefix_for_key(klass, key, index=nil)
+      if klass.respond_to?(:active_model_serializer) && !klass.active_model_serializer.nil? && klass.active_model_serializer.respond_to?(:csv_header_prefix_for_key)
+        header_prefix = klass.active_model_serializer.csv_header_prefix_for_key key.to_sym
+      else
+        header_prefix = klass.to_s
+      end
+
+      header_prefix + index.to_s + key.to_s.classify
+    end
+
     def serialized_attributes(object)
-      return nil if object.nil?
+      return {} if object.nil?
 
       klass, model = object.is_a?(Class) ? [object, object.first] : [object.class, object]
 
@@ -138,7 +148,7 @@ module RelationalExporter
       serialized
     end
 
-    def get_row_arr(records, fields, max_count=1, &block)
+    def get_row_arr(records, fields, max_count, &block)
       max_count.times do |i|
         record = serialized_attributes records[i]
         fields.each do |field|
