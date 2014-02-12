@@ -139,9 +139,7 @@ module RelationalExporter
       return {} if model.nil?
 
       if model.respond_to?(:active_model_serializer) && !model.active_model_serializer.nil?
-        serialized = model.active_model_serializer.new(model).as_json(root: false) rescue nil
-      # elsif defined?(BaseSerializer)
-        # serialized = BaseSerializer.new(model).as_json(root: false) rescue nil
+        serialized = model.active_model_serializer.new(model).as_json(root: false)
       end
 
       serialized = model.attributes if serialized.nil?
@@ -150,9 +148,9 @@ module RelationalExporter
 
     def get_row_arr(records, fields, max_count, &block)
       max_count.times do |i|
-        record = serialized_attributes records[i]
+        record = records[i].nil? ? {} : serialized_attributes(records[i])
         fields.each do |field|
-          val = record[field] rescue nil
+          val = record[field]
           yield val
         end
       end
