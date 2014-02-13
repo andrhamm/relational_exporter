@@ -3,6 +3,9 @@ require 'csv'
 require 'hashie'
 require 'relational_exporter/version'
 require 'relational_exporter/active_record_extension'
+require 'relational_exporter/csv_builder'
+require 'relational_exporter/record_worker'
+require 'celluloid'
 
 module RelationalExporter
   class Runner
@@ -33,128 +36,30 @@ module RelationalExporter
 
       main_klass.set_scope_from_hash output_config.output.scope.as_json
 
-      header_row = []
-      max_associations = {}
+      csv_builder = RelationalExporter::CsvBuilder.new output_config.file_path
+      Celluloid::Actor[:csv_builder] = csv_builder
+      result = csv_builder.future.start
+      pool = RelationalExporter::RecordWorker.pool size: 8
+      get_headers = true
 
-      csv_options = {headers: true}
-      if output_config.file_path.blank?
-        csv_method = :instance
-        csv_args = [STDOUT, csv_options]
-      else
-        csv_method = :open
-        csv_args = [output_config.file_path, 'wb', csv_options]
-      end
-
-      ::CSV.send(csv_method, *csv_args) do |csv|
-        main_klass.find_all_by_scope(output_config.output.scope.as_json).find_in_batches do |batch|
-          batch.each do |single|
-            if block_given?
-              yield single
-
-              return unless single
-            end
-
-            row = []
-
-            # Add main record headers
-            serialized_attributes(single).each do |field, value|
-              header_row << csv_header_prefix_for_key(main_klass, field) if csv.header_row?
-              row << value
-            end
-
-            output_config.output.associations.each do |association_accessor, association_options|
-              association_accessor = association_accessor.to_s.to_sym
-              association_klass = association_accessor.to_s.classify.constantize
-              scope = symbolize_options association_options.scope
-
-              associated = single.send association_accessor
-              # TODO - this might suck for single associations (has_one) because they don't return an ar::associations::collectionproxy
-              associated = associated.find_all_by_scope(scope) unless scope.blank? || !associated.respond_to?(:find_all_by_scope)
-
-              if associated.is_a? Hash
-                associated = [ associated ]
-              elsif associated.blank?
-                associated = []
-              end
-
-              foreign_key = main_klass.reflections[association_accessor].foreign_key rescue nil
-
-              fields = serialized_attributes(association_klass).keys
-
-              fields.reject! {|v| v == foreign_key } if foreign_key
-
-              if csv.header_row?
-                case main_klass.reflections[association_accessor].macro
-                when :has_many
-                  max_associated = association_klass.find_all_by_scope(scope)
-                                                    .joins(main_klass.table_name.to_sym)
-                                                    .order('count_all desc')
-                                                    .group(foreign_key)
-                                                    .limit(1).count.flatten[1]
-                when :has_one
-                  max_associated = 1
-                end
-
-                max_associated = 0 if max_associated.nil?
-
-                max_associations[association_accessor] = max_associated
-
-                max_associated.times do |i|
-                  fields.each do |field|
-                    header_row << csv_header_prefix_for_key(association_klass, field, i+1)
-                  end
-                end
-              end
-
-              get_row_arr(associated, fields, max_associations[association_accessor]) {|field| row << field}
-            end
-
-            csv << header_row if csv.header_row?
-            if row.count != header_row.count
-              @logger.error "Encountered invalid row, skipping."
-            end
-            csv << row
-          end
+      record_sequence = -1
+      main_klass.find_all_by_scope(output_config.output.scope.as_json).find_in_batches(batch_size: 100) do |records|
+        records.each do |record|
+          record_sequence += 1
+          pool.async.get_csv_row(record_sequence, record, output_config.output.associations, get_headers)
+          get_headers = false if get_headers
         end
       end
+
+      csv_builder.end_index = record_sequence
+
+      puts "CSV Builder Complete" if result.value === true
+
+      pool.terminate
+      csv_builder.terminate
     end
 
     private
-
-    def csv_header_prefix_for_key(klass, key, index=nil)
-      if klass.respond_to?(:active_model_serializer) && !klass.active_model_serializer.nil? && klass.active_model_serializer.respond_to?(:csv_header_prefix_for_key)
-        header_prefix = klass.active_model_serializer.csv_header_prefix_for_key key.to_sym
-      else
-        header_prefix = klass.to_s
-      end
-
-      header_prefix + index.to_s + key.to_s.classify
-    end
-
-    def serialized_attributes(object)
-      return {} if object.nil?
-
-      klass, model = object.is_a?(Class) ? [object, object.first] : [object.class, object]
-
-      return {} if model.nil?
-
-      if model.respond_to?(:active_model_serializer) && !model.active_model_serializer.nil?
-        serialized = model.active_model_serializer.new(model).as_json(root: false)
-      end
-
-      serialized = model.attributes if serialized.nil?
-      serialized
-    end
-
-    def get_row_arr(records, fields, max_count, &block)
-      max_count.times do |i|
-        record = records[i].nil? ? {} : serialized_attributes(records[i])
-        fields.each do |field|
-          val = record[field]
-          yield val
-        end
-      end
-    end
 
     def symbolize_options(options)
       options = options.as_json
