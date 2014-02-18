@@ -36,7 +36,6 @@ module RelationalExporter
         until @index == @end_index
           if row = @queue.delete(@index)
             write_row(row, csv)
-            @queue[@index]
             @index += 1
           else
             sleep 1
@@ -46,6 +45,12 @@ module RelationalExporter
 
       true
     end
+
+    def remaining
+      @end_index - @index if @end_index
+    end
+
+    private
 
     def write_row(row, csv)
       headers, values = row.is_a?(Celluloid::Future) ? row.value : row
@@ -61,10 +66,6 @@ module RelationalExporter
         # @logger.error "Encountered invalid row, skipping."
         error "Bad row! #{values.count} vs #{@header_row.count}", @header_row.join(','), values.join(',')
       end
-    end
-
-    def remaining
-      @end_index - @index if @end_index
     end
   end
 end

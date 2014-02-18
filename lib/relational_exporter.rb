@@ -47,8 +47,14 @@ module RelationalExporter
       main_klass.find_all_by_scope(output_config.output.scope.as_json).find_in_batches(batch_size: 100) do |records|
         records.each do |record|
           record_sequence += 1
-          pool.async.get_csv_row(record_sequence, record, output_config.output.associations, get_headers)
-          get_headers = false if get_headers
+
+          args = [record_sequence, record, output_config.output.associations, get_headers]
+          if get_headers
+            pool.get_csv_row(*args)
+            get_headers = false
+          else
+            pool.async.get_csv_row(*args)
+          end
         end
       end
 
