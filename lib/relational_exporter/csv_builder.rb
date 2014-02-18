@@ -3,12 +3,13 @@ require 'celluloid'
 module RelationalExporter
   class CsvBuilder
     include Celluloid
+    include Celluloid::Logger
 
     attr_accessor :queue, :end_index
 
     trap_exit :actor_died
     def actor_died(actor, reason)
-      puts "Oh no! #{actor.inspect} has died because of a #{reason.class}"
+      warn "Oh no! #{actor.inspect} has died because of a #{reason.class}" unless reason.nil?
     end
 
     def initialize(file_path=nil)
@@ -50,13 +51,15 @@ module RelationalExporter
       headers, values = row.is_a?(Celluloid::Future) ? row.value : row
       if csv.header_row?
         @header_row = headers
+        info "Writing headers to file (#{headers.count})"
         csv << @header_row
       end
       if values.count == @header_row.count
+        info "Writing row to file (#{@index})"
         csv << values
       else
         # @logger.error "Encountered invalid row, skipping."
-        puts "FUCK, bad row! #{values.count} vs #{@header_row.count}", @header_row.join(','), values.join(',')
+        error "Bad row! #{values.count} vs #{@header_row.count}", @header_row.join(','), values.join(',')
       end
     end
 

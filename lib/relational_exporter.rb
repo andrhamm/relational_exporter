@@ -29,6 +29,7 @@ module RelationalExporter
 
     def export(output_config, &block)
       ActiveRecord::Base.logger = @logger
+      Celluloid.logger = @logger
 
       output_config = Hashie::Mash.new output_config
 
@@ -53,7 +54,7 @@ module RelationalExporter
 
       csv_builder.end_index = record_sequence
 
-      puts "CSV Builder Complete" if result.value === true
+      @logger.info "CSV export complete" if result.value === true
 
       pool.terminate
       csv_builder.terminate

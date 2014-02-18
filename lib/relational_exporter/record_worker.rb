@@ -3,10 +3,11 @@ require 'celluloid'
 module RelationalExporter
   class RecordWorker
     include Celluloid
+    include Celluloid::Logger
 
     trap_exit :actor_died
     def actor_died(actor, reason)
-      puts "Oh no! #{actor.inspect} has died because of a #{reason.class}"
+      puts "Oh no! #{actor.inspect} has died because of a #{reason.class}" unless reason.nil?
     end
 
     @@MAX_ASSOCIATED = {}
