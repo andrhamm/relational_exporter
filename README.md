@@ -7,7 +7,7 @@ A gem to make it easy to export data from relational databases. RelationalExport
 * Add concurrency for faster exports
 * Support multiple formats (currently only CSV)
 * Improve DSL
-* Clean up the code
+* Clean up the code ([revise worker/job model](https://gist.github.com/schmurfy/3758436))
 
 ## Installation
 
