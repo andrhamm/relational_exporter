@@ -18,6 +18,7 @@ module RelationalExporter
 
       get_rows with_headers
 
+      info "Queueing record #{record_sequence} <#{Actor.current}>…"
       Celluloid::Actor[:csv_builder].queue[record_sequence] = [@header_row, @value_row]
     end
 
