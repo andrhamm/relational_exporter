@@ -52,9 +52,10 @@ module RelationalExporter
       batch_count = 0
 
       batch_options = Hashie::Mash.new({batch_size: 100}.merge(options.batch_options || {}))
-      limit = options.limit.to_i || nil
+      limit = options.limit.nil? ? nil : options.limit.to_i
+      max_records = limit.nil? ? total_records : [limit, total_records].min
 
-      @logger.info "CSV export will process #{limit} of #{total_records} total records."
+      @logger.info "CSV export will process #{max_records} of #{total_records} total records."
 
       all_bm = Benchmark.measure do
         catch(:hit_limit) do
@@ -73,7 +74,7 @@ module RelationalExporter
                   pool.async.get_csv_row(*args)
                 end
 
-                throw :hit_limit if record_sequence == limit
+                throw :hit_limit if !limit.nil? && (record_sequence == max_records)
               end
             end
 
